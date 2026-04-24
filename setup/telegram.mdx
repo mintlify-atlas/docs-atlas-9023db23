@@ -1,0 +1,97 @@
+---
+title: "Add Telegram support to signal-bot-orx via webhook"
+description: "Set up the Telegram transport by creating a bot with BotFather, configuring your token and allowlist, and registering the webhook URL with Telegram."
+---
+
+The Telegram transport connects signal-bot-orx to Telegram by receiving webhook `POST` requests from Telegram's servers. Unlike Signal, Telegram pushes updates to a public HTTPS URL you provide — so you need a publicly reachable server with a valid TLS certificate, or a reverse proxy or tunneling tool in front of your local instance.
+
+<Note>
+  Telegram requires a public HTTPS URL for webhook registration. If you are running locally, use a reverse proxy (e.g. nginx with a TLS certificate) or a tunneling tool such as [ngrok](https://ngrok.com/) to expose your local bot endpoint.
+</Note>
+
+## Step 1: Create a bot with BotFather
+
+<Steps>
+  <Step title="Open BotFather">
+    Start a conversation with [@BotFather](https://t.me/BotFather) on Telegram.
+  </Step>
+  <Step title="Create a new bot">
+    Send `/newbot` and follow the prompts. BotFather will ask for a display name and a username ending in `bot`.
+  </Step>
+  <Step title="Copy the bot token">
+    After creation, BotFather gives you a token in the format `123456789:ABCDef...`. Save it — you will set it as `TELEGRAM_BOT_TOKEN`.
+  </Step>
+  <Step title="Note the username">
+    The username you chose (without the `@`) is your `TELEGRAM_BOT_USERNAME`. Set it in `.env` to enable mention and reply detection in group chats.
+  </Step>
+</Steps>
+
+## Step 2: Configure environment variables
+
+Set these variables in your `.env` file:
+
+<ParamField body="TELEGRAM_ENABLED" type="boolean" default="false">
+  Set to `true` to activate the Telegram transport. When `false`, the `POST /webhook/telegram` endpoint is not registered.
+</ParamField>
+
+<ParamField body="TELEGRAM_BOT_TOKEN" type="string">
+  The bot token issued by BotFather. Required when `TELEGRAM_ENABLED=true`. Example: `123456789:ABCDef-ghijklmnop`.
+</ParamField>
+
+<ParamField body="TELEGRAM_WEBHOOK_SECRET" type="string">
+  Optional secret token. When set, Telegram includes it in the `X-Telegram-Bot-Api-Secret-Token` header of every webhook request and the bot validates it. Recommended for production deployments.
+</ParamField>
+
+<ParamField body="TELEGRAM_ALLOWED_USER_IDS" type="string">
+  Comma-separated list of Telegram user IDs permitted to trigger the bot. Required unless `TELEGRAM_DISABLE_AUTH=true`. You can find a user ID by messaging [@userinfobot](https://t.me/userinfobot).
+</ParamField>
+
+<ParamField body="TELEGRAM_ALLOWED_CHAT_IDS" type="string">
+  Optional comma-separated list of group or chat IDs. When set, only messages from these chats are processed, regardless of the sender's user ID.
+</ParamField>
+
+<ParamField body="TELEGRAM_DISABLE_AUTH" type="boolean" default="false">
+  Bypasses all allowlist checks. Every user and chat can trigger the bot when `true`. Use only for local testing.
+</ParamField>
+
+<ParamField body="TELEGRAM_BOT_USERNAME" type="string">
+  The bot's username without the `@` prefix. Used in group chats to detect `@mention` triggers and to verify that a reply is directed at the bot. Example: `mysignalbot`.
+</ParamField>
+
+A minimal working configuration:
+
+```env
+TELEGRAM_ENABLED=true
+TELEGRAM_BOT_TOKEN=123456789:ABCDef-ghijklmnop
+TELEGRAM_WEBHOOK_SECRET=my-secret-token
+TELEGRAM_ALLOWED_USER_IDS=987654321
+TELEGRAM_BOT_USERNAME=mysignalbot
+```
+
+## Step 3: Register the webhook with Telegram
+
+After the bot is running and your HTTPS endpoint is reachable, register the webhook by calling the Telegram API. Replace `<YOUR_PUBLIC_HOST>` with your domain or public IP:
+
+```bash
+curl -sS "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook" \
+  -d "url=https://<YOUR_PUBLIC_HOST>/webhook/telegram" \
+  -d 'allowed_updates=["message","edited_message"]' \
+  -d "secret_token=${TELEGRAM_WEBHOOK_SECRET}"
+```
+
+A successful response looks like:
+
+```json
+{"ok":true,"result":true,"description":"Webhook was set"}
+```
+
+You only need to run this command once, or again whenever your public URL changes. Telegram stores the webhook URL server-side.
+
+## Group chat behavior
+
+In direct messages, the bot replies to every message. In group chats, the bot responds only when:
+
+- A message **mentions** the bot by username (e.g. `@mysignalbot what is the weather today?`), or
+- A user **replies** to one of the bot's messages.
+
+Set `TELEGRAM_BOT_USERNAME` to your bot's username (without `@`) to enable this detection. If `TELEGRAM_BOT_USERNAME` is not set, the bot will not respond to group messages.

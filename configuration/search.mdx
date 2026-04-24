@@ -1,0 +1,150 @@
+---
+title: "Configure search backends, modes, and result limits"
+description: "Configure DDGS search modes, backend strategies, privacy and context modes, per-command toggles, and result limits for signal-bot-orx's search commands."
+---
+
+Search configuration controls which slash commands are available, how the bot queries DuckDuckGo and other backends, and whether normal chat messages can trigger automatic search routing. The two core privacy modes — `no_context` and `context` — determine whether DDGS requests run only on explicit commands or can also fire from conversational messages.
+
+## Enabling search
+
+<ParamField path="BOT_SEARCH_ENABLED" type="boolean" default="true">
+  Master switch for all search functionality. Set to `false` to disable every search command and auto-routing regardless of other settings.
+</ParamField>
+
+## Privacy and context mode
+
+<ParamField path="BOT_SEARCH_CONTEXT_MODE" type="string" default="no_context">
+  Controls when DDGS queries are allowed to run. Accepted values: `no_context` or `context`.
+
+  - **`no_context`** (default) — DDGS requests only run for explicit slash commands (`/search`, `/news`, `/wiki`, `/images`, `/videos`, `/source`). Normal conversational messages are never routed to a search backend, protecting privacy by default.
+  - **`context`** — Normal chat messages are eligible for automatic search routing. The bot passes each message through a routing model that decides whether a web lookup is needed and which mode to use. This enables richer, more up-to-date replies but means every message may trigger a DDGS request.
+</ParamField>
+
+<Note>
+  In `context` mode, ambiguous follow-ups that use pronouns without a clear referent — for example, "What else did he do?" — may trigger the clarification "Who are you referring to?" A short reply naming the subject continues the pending query.
+</Note>
+
+<Info>
+  The `/videos` command is always explicit and is never selected by the auto-router, even in `context` mode.
+</Info>
+
+## Per-command toggles
+
+You can disable individual search commands without turning off the entire search feature.
+
+<ParamField path="BOT_SEARCH_MODE_SEARCH_ENABLED" type="boolean" default="true">
+  Enables or disables the `/search` command for general web search.
+</ParamField>
+
+<ParamField path="BOT_SEARCH_MODE_NEWS_ENABLED" type="boolean" default="true">
+  Enables or disables the `/news` command for recent news results.
+</ParamField>
+
+<ParamField path="BOT_SEARCH_MODE_WIKI_ENABLED" type="boolean" default="true">
+  Enables or disables the `/wiki` command for encyclopedia lookups.
+</ParamField>
+
+<ParamField path="BOT_SEARCH_MODE_IMAGES_ENABLED" type="boolean" default="true">
+  Enables or disables the `/images` command. When enabled, the bot fetches and sends the top image result as an attachment.
+</ParamField>
+
+<ParamField path="BOT_SEARCH_MODE_VIDEOS_ENABLED" type="boolean" default="true">
+  Enables or disables the `/videos` command. When enabled, the bot returns a numbered list of video results and waits for you to reply with a number to send the thumbnail and URL.
+</ParamField>
+
+## Search backends
+
+The bot supports multiple search backends and two strategies for selecting among them.
+
+<ParamField path="BOT_SEARCH_BACKEND_STRATEGY" type="string" default="first_non_empty">
+  How the bot chooses results when multiple backends are configured. Accepted values: `first_non_empty` or `aggregate`.
+
+  - **`first_non_empty`** — Queries backends in order and stops at the first one that returns results. This minimises latency.
+  - **`aggregate`** — Queries all configured backends, merges results, deduplicates by URL, then caps the final output to the relevant `MAX_RESULTS` limit. This maximises result coverage at the cost of extra network requests.
+</ParamField>
+
+<ParamField path="BOT_SEARCH_BACKEND_SEARCH_ORDER" type="string" default="duckduckgo,bing,google,yandex,grokipedia">
+  Ordered comma-separated fallback chain for the `/search` command and auto-routed `search` mode. The bot tries each backend in sequence. Allowed values: `auto`, `all`, `bing`, `brave`, `duckduckgo`, `google`, `grokipedia`, `mojeek`, `wikipedia`, `yahoo`, `yandex`. When this variable is set it takes precedence over `BOT_SEARCH_BACKEND_SEARCH`.
+</ParamField>
+
+<ParamField path="BOT_SEARCH_BACKEND_NEWS_ORDER" type="string" default="duckduckgo,bing,yahoo">
+  Ordered comma-separated fallback chain for the `/news` command and auto-routed `news` mode. Encyclopedia backends (`wikipedia`, `grokipedia`) are not allowed here and will cause a startup error if listed. When this variable is set it takes precedence over `BOT_SEARCH_BACKEND_NEWS`.
+</ParamField>
+
+<AccordionGroup>
+  <Accordion title="Legacy single-backend variables">
+    These variables were the original way to set a backend for each command. If you set an `_ORDER` variable above, it takes precedence. These remain for backward compatibility.
+
+    <ParamField path="BOT_SEARCH_BACKEND_SEARCH" type="string" default="auto">
+      Backend for the `/search` command when `BOT_SEARCH_BACKEND_SEARCH_ORDER` is not set. `auto` resolves to the full default order (`duckduckgo,bing,google,yandex,grokipedia`).
+    </ParamField>
+
+    <ParamField path="BOT_SEARCH_BACKEND_NEWS" type="string" default="auto">
+      Backend for the `/news` command when `BOT_SEARCH_BACKEND_NEWS_ORDER` is not set. `auto` resolves to `duckduckgo,bing,yahoo`.
+    </ParamField>
+
+    <ParamField path="BOT_SEARCH_BACKEND_WIKI" type="string" default="wikipedia">
+      Backend for the `/wiki` command. `/wiki` always runs in explicit mode and is not affected by the `_ORDER` strategy.
+    </ParamField>
+
+    <ParamField path="BOT_SEARCH_BACKEND_IMAGES" type="string" default="duckduckgo">
+      Backend for the `/images` command.
+    </ParamField>
+
+    <ParamField path="BOT_SEARCH_BACKEND_VIDEOS" type="string" default="youtube">
+      Backend for the `/videos` command.
+    </ParamField>
+  </Accordion>
+</AccordionGroup>
+
+## Result limits
+
+<ParamField path="BOT_SEARCH_TEXT_MAX_RESULTS" type="number" default="5">
+  Maximum number of web search results fetched and passed to the summarization model for `/search` and auto-routed `search` requests. Also caps the final merged result count when `aggregate` strategy is used.
+</ParamField>
+
+<ParamField path="BOT_SEARCH_NEWS_MAX_RESULTS" type="number" default="5">
+  Maximum number of news results for `/news` and auto-routed `news` requests.
+</ParamField>
+
+<ParamField path="BOT_SEARCH_WIKI_MAX_RESULTS" type="number" default="3">
+  Maximum number of encyclopedia results for `/wiki` requests.
+</ParamField>
+
+<ParamField path="BOT_SEARCH_IMAGES_MAX_RESULTS" type="number" default="3">
+  Number of image results to retrieve. The bot attempts to download each in order and sends the first one it can successfully fetch.
+</ParamField>
+
+<ParamField path="BOT_SEARCH_VIDEOS_MAX_RESULTS" type="number" default="5">
+  Number of video results to include in the numbered list returned by `/videos`.
+</ParamField>
+
+## Other search settings
+
+<ParamField path="BOT_SEARCH_REGION" type="string" default="us-en">
+  Region and language code passed to search backends. For example, `gb-en` for UK English or `de-de` for German. Format follows DuckDuckGo region codes.
+</ParamField>
+
+<ParamField path="BOT_SEARCH_SAFESEARCH" type="string" default="moderate">
+  Safe search filter level. Accepted values: `on`, `moderate`, or `off`.
+</ParamField>
+
+<ParamField path="BOT_SEARCH_TIMEOUT_SECONDS" type="number" default="8">
+  Timeout in seconds for each individual search backend request. This applies per backend attempt, not to the full multi-backend chain.
+</ParamField>
+
+<ParamField path="BOT_SEARCH_SOURCE_TTL_SECONDS" type="number" default="1800">
+  How long (in seconds) recent search results are retained in memory for `/source` lookups. After this window expires the bot can no longer retrieve sources from past searches.
+</ParamField>
+
+<ParamField path="BOT_SEARCH_PERSONA_ENABLED" type="boolean" default="false">
+  When `true`, search summaries reuse the active chat system prompt as the base persona, with factual constraints appended. This makes search replies consistent with the bot's configured personality. Factual accuracy constraints always take precedence over style instructions.
+</ParamField>
+
+<ParamField path="BOT_SEARCH_USE_HISTORY_FOR_SUMMARY" type="boolean" default="false">
+  When `true`, the last two turns of conversation history are included in the search summary prompt. This gives the model more context for generating a relevant summary but increases token usage per search request.
+</ParamField>
+
+<ParamField path="BOT_SEARCH_DEBUG_LOGGING" type="boolean" default="false">
+  When `true`, the bot logs routing and summarization decisions to the application log — including `should_search`, `mode`, query length, and resolution path. Raw message and result payloads are never logged. Enable this during debugging to inspect why messages are or are not being routed to search.
+</ParamField>

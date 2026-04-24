@@ -1,0 +1,68 @@
+{
+  "projectType": "general",
+  "projectName": "signal-bot-orx",
+  "projectDescription": "A webhook-driven Signal bot powered by signal-cli-rest-api and OpenRouter, supporting mention-triggered group chat replies, slash-command search, image generation, and weather lookups across Signal, WhatsApp, and Telegram transports.",
+  "theme": "palm",
+  "primaryColor": "#82ab2c",
+  "lightColor": "#6c9e08",
+  "darkColor": "#dbe0b7",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": ["introduction", "quickstart"]
+          },
+          {
+            "group": "Setup",
+            "pages": ["setup/signal", "setup/whatsapp", "setup/telegram"]
+          },
+          {
+            "group": "Configuration",
+            "pages": ["configuration/chat", "configuration/search", "configuration/weather"]
+          },
+          {
+            "group": "Commands",
+            "pages": ["commands/overview", "commands/search", "commands/image-and-weather"]
+          },
+          {
+            "group": "Operations",
+            "pages": ["deployment", "troubleshooting"]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Multi-transport support: Signal, WhatsApp (bridge), and Telegram",
+    "Mention-triggered group chat replies via OpenRouter LLM",
+    "DDGS-powered slash commands: /search, /news, /wiki, /images, /videos",
+    "Auto-search routing from normal chat messages (context mode)",
+    "Optional image generation via /imagine using OpenRouter",
+    "Weather and 5-day forecast via OpenWeatherMap (/weather, /forecast)",
+    "Per-conversation in-memory context history with configurable TTL",
+    "Number, group, and user allowlists for access control",
+    "Webhook deduplication to prevent repeated delivery handling",
+    "Customizable system prompts for bot personality"
+  ],
+  "publicApiSurface": [
+    "GET /healthz",
+    "POST /webhook/signal",
+    "POST /webhook/whatsapp",
+    "POST /webhook/telegram",
+    "/search <query>",
+    "/news <query>",
+    "/wiki <query>",
+    "/images <query>",
+    "/videos <query>",
+    "/source <claim>",
+    "/imagine <prompt>",
+    "/weather <location>",
+    "/forecast <location>",
+    "Settings.from_env()",
+    "WebhookHandler",
+    "create_app(settings)"
+  ]
+}

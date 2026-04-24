@@ -1,0 +1,147 @@
+---
+title: "Deploy and run signal-bot-orx as a persistent service"
+description: "How to start the bot service, configure the bind host and port, set up a systemd unit, and verify all webhook endpoints are reachable."
+---
+
+signal-bot-orx runs as a long-lived HTTP server built on FastAPI and Uvicorn. It listens for incoming webhook payloads from `signal-cli-rest-api`, WhatsApp bridges, and the Telegram Bot API, then dispatches each event to the appropriate handler. Because the process must stay running to receive webhooks, you need a process manager — systemd, Docker, or a similar tool — for any persistent deployment.
+
+## Starting the bot
+
+You must export your `.env` variables into the shell before launching the process. The bot reads all configuration from environment variables at startup; if any required variable is missing, the process exits immediately with an error.
+
+<Steps>
+  <Step title="Load environment variables">
+    ```bash
+    set -a
+    source .env
+    set +a
+    ```
+  </Step>
+  <Step title="Start the service">
+    If you installed from source with `uv sync`:
+
+    ```bash
+    uv run signal-bot-orx
+    ```
+
+    If you installed as a tool with `uv tool install signal-bot-orx` or `pip install signal-bot-orx`:
+
+    ```bash
+    signal-bot-orx
+    ```
+  </Step>
+</Steps>
+
+<Warning>
+  If you skip the `source .env` step, startup will fail with `Missing required environment variables: OPENROUTER_CHAT_API_KEY` (and any other unset required vars). The process does not fall back to defaults for required fields.
+</Warning>
+
+## Bind configuration
+
+The bot binds to `127.0.0.1:8001` by default. This is intentional for local-only deployments — `signal-cli-rest-api` typically runs on the same host and can reach the bot over loopback.
+
+| Variable | Default | Notes |
+| --- | --- | --- |
+| `BOT_WEBHOOK_HOST` | `127.0.0.1` | Set to `0.0.0.0` for container or LAN deployments |
+| `BOT_WEBHOOK_PORT` | `8001` | Change if the port conflicts with another service |
+
+The `.env.example` ships with `BOT_WEBHOOK_HOST=0.0.0.0` as a deployment-friendly starting point. If you copy `.env.example` directly, the bot will bind to all interfaces. Change this to `127.0.0.1` if you want loopback-only access.
+
+<Note>
+  For Telegram, the bot must be reachable from the public internet, since Telegram's servers push webhook payloads to your URL. Use a reverse proxy (nginx, Caddy) or a tunneling tool for local testing.
+</Note>
+
+## Health check
+
+Once the bot is running, confirm it is accepting connections:
+
+```bash
+curl -s http://127.0.0.1:8001/healthz
+```
+
+Expected response:
+
+```json
+{"status": "ok"}
+```
+
+This endpoint is always active regardless of which transports are enabled. Use it for uptime monitoring and deployment readiness checks.
+
+## Webhook endpoints
+
+The bot exposes these HTTP endpoints:
+
+| Endpoint | Active when |
+| --- | --- |
+| `GET /healthz` | Always |
+| `POST /webhook/signal` | `SIGNAL_ENABLED=true` (default) |
+| `POST /webhook/whatsapp` | `WHATSAPP_ENABLED=true` |
+| `POST /webhook/telegram` | `TELEGRAM_ENABLED=true` |
+
+Configure your services to POST to the appropriate endpoint:
+
+- **signal-cli-rest-api**: set the callback URL to `http://<BOT_WEBHOOK_HOST>:<BOT_WEBHOOK_PORT>/webhook/signal`
+- **WhatsApp bridge**: set the webhook to `http://<BOT_WEBHOOK_HOST>:<BOT_WEBHOOK_PORT>/webhook/whatsapp`
+- **Telegram**: register the webhook manually (see [Telegram setup](/setup/telegram))
+
+## Running as a systemd service
+
+For persistent server deployments, create a systemd unit file so the bot restarts automatically after a crash or reboot.
+
+Create `/etc/systemd/system/signal-bot-orx.service`:
+
+```ini
+[Unit]
+Description=signal-bot-orx
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/path/to/signal-bot-orx
+EnvironmentFile=/path/to/signal-bot-orx/.env
+ExecStart=/path/to/uv run signal-bot-orx
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Then enable and start the service:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable signal-bot-orx
+sudo systemctl start signal-bot-orx
+sudo systemctl status signal-bot-orx
+```
+
+<Tip>
+  Replace `/path/to/uv` with the absolute path from `which uv`. Systemd runs units with a minimal environment and may not resolve `uv` from `PATH` otherwise.
+</Tip>
+
+## Multiple transports
+
+Signal, WhatsApp, and Telegram can all be enabled simultaneously. Each transport has its own set of environment variables, its own allowlist, and its own webhook endpoint. Enabling multiple transports does not require separate processes — the single bot process handles all active transports concurrently.
+
+To enable all three:
+
+```bash
+SIGNAL_ENABLED=true
+WHATSAPP_ENABLED=true
+TELEGRAM_ENABLED=true
+```
+
+Each transport requires its own configuration. See the [Signal](/setup/signal), [WhatsApp](/setup/whatsapp), and [Telegram](/setup/telegram) setup pages for the full variable lists.
+
+## Development checks
+
+Before deploying a code change, run the project's lint, type, and test suite:
+
+```bash
+uv run ruff check .
+uv run ty check .
+uv run pytest
+```
+
+These commands must pass before building or releasing a new version.

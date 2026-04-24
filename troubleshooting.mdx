@@ -1,0 +1,262 @@
+---
+title: "Troubleshoot signal-bot-orx startup and delivery issues"
+description: "Diagnose common startup failures, webhook delivery problems, auth and allowlist errors, and transport-specific issues in signal-bot-orx."
+---
+
+Most signal-bot-orx failures fall into one of three categories: startup errors from missing or invalid environment variables, webhook delivery problems between `signal-cli-rest-api` and the bot, and allowlist rejections that silently drop messages. The bot logs to stdout — check the process output or your systemd journal first before investigating configuration.
+
+## Startup failures
+
+<AccordionGroup>
+  <Accordion title="Missing required environment variables: OPENROUTER_CHAT_API_KEY">
+    The bot could not find `OPENROUTER_CHAT_API_KEY` in the environment. This variable is always required.
+
+    1. Confirm the key is set in your `.env` file.
+    2. Export the file before starting the bot:
+
+    ```bash
+    set -a
+    source .env
+    set +a
+    uv run signal-bot-orx
+    ```
+
+    If you skip the `source` step, the process inherits an empty environment and exits immediately with this error.
+  </Accordion>
+
+  <Accordion title="No transports enabled">
+    **Error**: `No transports enabled. Enable at least one of SIGNAL_ENABLED, WHATSAPP_ENABLED, or TELEGRAM_ENABLED.`
+
+    At least one transport must be set to `true`. Signal is enabled by default when `SIGNAL_ENABLED` is unset, but if you explicitly set `SIGNAL_ENABLED=false` without enabling another transport, startup fails.
+
+    Set at least one of:
+
+    ```bash
+    SIGNAL_ENABLED=true
+    WHATSAPP_ENABLED=true
+    TELEGRAM_ENABLED=true
+    ```
+  </Accordion>
+
+  <Accordion title="Missing Signal allowlist configuration">
+    **Error**: `Missing Signal allowlist configuration: set SIGNAL_ALLOWED_NUMBER, SIGNAL_ALLOWED_NUMBERS, or SIGNAL_ALLOWED_GROUP_IDS, or set SIGNAL_DISABLE_AUTH=true`
+
+    When Signal is enabled, you must configure at least one allowlist entry. Set one or more of:
+
+    ```bash
+    SIGNAL_ALLOWED_NUMBER=+15550002222
+    SIGNAL_ALLOWED_NUMBERS=+15550002222,+15550003333
+    SIGNAL_ALLOWED_GROUP_IDS=your-group-id
+    ```
+
+    For temporary testing only, you can bypass the allowlist entirely:
+
+    ```bash
+    SIGNAL_DISABLE_AUTH=true
+    ```
+
+    <Warning>
+      Do not leave `SIGNAL_DISABLE_AUTH=true` in production. Anyone who can reach the webhook endpoint can trigger bot responses.
+    </Warning>
+  </Accordion>
+
+  <Accordion title="Missing WhatsApp allowlist configuration">
+    **Error**: `Missing WhatsApp allowlist configuration: set WHATSAPP_ALLOWED_NUMBERS or WHATSAPP_DISABLE_AUTH=true`
+
+    When `WHATSAPP_ENABLED=true`, you must either provide an allowlist or explicitly disable auth:
+
+    ```bash
+    WHATSAPP_ALLOWED_NUMBERS=+15550002222,+15550003333
+    # or
+    WHATSAPP_DISABLE_AUTH=true
+    ```
+  </Accordion>
+
+  <Accordion title="Missing Telegram allowlist configuration">
+    **Error**: `Missing Telegram allowlist configuration: set TELEGRAM_ALLOWED_USER_IDS, TELEGRAM_ALLOWED_CHAT_IDS, or TELEGRAM_DISABLE_AUTH=true`
+
+    When `TELEGRAM_ENABLED=true`, set at least one of:
+
+    ```bash
+    TELEGRAM_ALLOWED_USER_IDS=123456789
+    TELEGRAM_ALLOWED_CHAT_IDS=-1001234567890
+    # or
+    TELEGRAM_DISABLE_AUTH=true
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Bot not responding
+
+<AccordionGroup>
+  <Accordion title="No replies in any chat">
+    Work through this checklist in order:
+
+    1. **Confirm the webhook is reachable.** Check that `signal-cli-rest-api` can reach the bot's webhook URL. If `BOT_WEBHOOK_HOST` is `127.0.0.1`, the bot is only reachable from the same host. Set `BOT_WEBHOOK_HOST=0.0.0.0` and verify the port is not blocked by a firewall.
+
+    2. **Confirm the sender is allowlisted.** Check `SIGNAL_ALLOWED_NUMBERS` and `SIGNAL_ALLOWED_GROUP_IDS`. Unauthorized senders are silently ignored — look for `ignoring_unauthorized_sender` in the logs.
+
+    3. **Verify `OPENROUTER_CHAT_API_KEY` is valid.** An expired or invalid key causes chat generation to fail. Look for `chat_generation_error` in the log output.
+
+    4. **Check the health endpoint.** If `/healthz` is not returning `{"status": "ok"}`, the bot process itself may be down.
+  </Accordion>
+
+  <Accordion title="Bot ignores group chat messages">
+    In group chats, the bot only responds when you mention it by one of its configured aliases. The default aliases are `@signalbot` and `@bot`.
+
+    Confirm your message includes a recognized alias:
+
+    ```
+    @bot what is the weather today?
+    ```
+
+    To add or change aliases, set `BOT_MENTION_ALIASES` as a comma-separated list:
+
+    ```bash
+    BOT_MENTION_ALIASES=@mybot,@assistant
+    ```
+
+    Enable debug logging to see routing decisions:
+
+    ```bash
+    BOT_SEARCH_DEBUG_LOGGING=true
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Duplicate replies
+
+<AccordionGroup>
+  <Accordion title="Bot sends the same reply more than once">
+    signal-bot-orx has built-in deduplication with a 5-minute TTL. Identical webhook payloads delivered within the window are discarded after the first.
+
+    If you are seeing duplicate replies, the likely cause is that `signal-cli-rest-api` is delivering the same event multiple times in a short window, or a timing issue is causing two bot processes to handle the same event. Check whether you are accidentally running more than one instance of the bot against the same webhook endpoint.
+  </Accordion>
+</AccordionGroup>
+
+## /imagine not working
+
+<AccordionGroup>
+  <Accordion title="/imagine command produces no output or an error">
+    Image generation requires both variables to be set:
+
+    ```bash
+    OPENROUTER_IMAGE_API_KEY=sk-or-...
+    OPENROUTER_IMAGE_MODEL=openai/gpt-image-1
+    ```
+
+    If either variable is missing or empty, the `/imagine` command is unavailable. You can use the same key for both `OPENROUTER_CHAT_API_KEY` and `OPENROUTER_IMAGE_API_KEY` — they share limits and settings when set to the same value.
+  </Accordion>
+</AccordionGroup>
+
+## Signal send failures
+
+<AccordionGroup>
+  <Accordion title="Bot receives messages but does not send replies">
+    1. Verify `SIGNAL_API_BASE_URL` is correct and that `signal-cli-rest-api` is running and reachable at that URL.
+    2. Verify `SIGNAL_SENDER_NUMBER` matches the number registered with `signal-cli-rest-api`. The number must include the country code (e.g. `+15550001111`).
+    3. If you are seeing failures specifically for group replies, try setting `BOT_GROUP_REPLY_MODE=dm_fallback` while debugging. This switches the bot to send replies as direct messages to the sender instead of back to the group, which helps isolate whether the group recipient is the issue.
+  </Accordion>
+</AccordionGroup>
+
+## Search not working
+
+<AccordionGroup>
+  <Accordion title="Slash commands return no results">
+    1. Confirm `BOT_SEARCH_ENABLED=true` (this is the default).
+    2. Confirm the specific command mode is enabled. For example, `/news` requires `BOT_SEARCH_MODE_NEWS_ENABLED=true`.
+    3. If results are slow or empty, check `BOT_SEARCH_TIMEOUT_SECONDS` (default `8`). Increase it if your search backends are slow to respond.
+    4. Enable debug logging to see backend routing decisions:
+
+    ```bash
+    BOT_SEARCH_DEBUG_LOGGING=true
+    ```
+
+    This logs routing and summarization metadata without exposing raw message content or result payloads.
+  </Accordion>
+
+  <Accordion title="Auto-search from normal chat messages is not triggering">
+    Auto-search routing from regular chat messages requires `BOT_SEARCH_CONTEXT_MODE=context`. The default is `no_context`, which restricts search to explicit slash commands only.
+
+    ```bash
+    BOT_SEARCH_CONTEXT_MODE=context
+    ```
+
+    Note that in `context` mode, ambiguous follow-ups (for example, messages with only pronoun references) may trigger a clarification response (`Who are you referring to?`). A short follow-up reply continues the pending query.
+  </Accordion>
+</AccordionGroup>
+
+## Telegram webhook registration
+
+<AccordionGroup>
+  <Accordion title="Telegram bot is not receiving messages">
+    Telegram requires a publicly reachable HTTPS URL for webhook delivery. The bot cannot receive Telegram messages over a plain HTTP or localhost URL.
+
+    1. Set up a reverse proxy (nginx, Caddy) with a valid TLS certificate, or use a tunneling tool for local testing.
+    2. Verify `TELEGRAM_BOT_TOKEN` is valid by calling the Telegram API directly:
+
+    ```bash
+    curl -s "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getMe"
+    ```
+
+    3. Register the webhook, making sure `allowed_updates` includes `"message"` and `"edited_message"`:
+
+    ```bash
+    curl -sS "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook" \
+      -d "url=https://<YOUR_PUBLIC_HOST>/webhook/telegram" \
+      -d 'allowed_updates=["message","edited_message"]' \
+      -d "secret_token=${TELEGRAM_WEBHOOK_SECRET}"
+    ```
+
+    In Telegram group chats, the bot only replies when mentioned (`@<bot_username>`) or when users reply directly to the bot's messages. Set `TELEGRAM_BOT_USERNAME` if mention detection is not working.
+  </Accordion>
+</AccordionGroup>
+
+## Weather not responding
+
+<AccordionGroup>
+  <Accordion title="/weather and /forecast return nothing">
+    Weather commands require an OpenWeatherMap API key:
+
+    ```bash
+    WEATHER_API_KEY=your-owm-key
+    ```
+
+    If no location is provided in the command and `WEATHER_DEFAULT_LOCATION` is not set, the command cannot resolve a location. Set a fallback:
+
+    ```bash
+    WEATHER_DEFAULT_LOCATION=London
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Checking the health endpoint
+
+Use the health endpoint to confirm the bot process is running and accepting connections:
+
+```bash
+curl -s http://127.0.0.1:8001/healthz
+# Expected: {"status": "ok"}
+```
+
+Adjust the host and port to match your `BOT_WEBHOOK_HOST` and `BOT_WEBHOOK_PORT` values. If the endpoint does not respond, check whether the process is running and whether a firewall is blocking the port.
+
+## Logging
+
+The bot logs to stdout using this format:
+
+```
+%(asctime)s %(levelname)s %(name)s %(message)s
+```
+
+Key log patterns to look for when diagnosing issues:
+
+| Log message | Meaning |
+| --- | --- |
+| `ignoring_unauthorized_sender` | A message was dropped because the sender is not allowlisted |
+| `unsupported_event` | The bot received a webhook payload type it does not handle |
+| `chat_generation_error` | The OpenRouter API call failed — check your API key and model |
+
+<Tip>
+  Set `BOT_SEARCH_DEBUG_LOGGING=true` to get detailed routing and summarization logs for every search decision. These logs include the routing outcome, search mode, and query length, but do not expose raw message text or search result payloads.
+</Tip>

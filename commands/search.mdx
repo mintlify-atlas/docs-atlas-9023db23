@@ -1,0 +1,122 @@
+---
+title: "Search commands: /search, /news, /wiki, /images, /videos"
+description: "The five search slash commands — /search, /news, /wiki, /images, /videos — how they fetch and summarize results, and how /source retrieves cached URLs."
+---
+
+The search commands fetch results from DuckDuckGo and other configurable backends, then summarize them through OpenRouter before sending the reply. Each command targets a specific kind of content: general web results, news articles, Wikipedia, images, or YouTube videos. You invoke them with a slash prefix and a query, and the bot handles the rest.
+
+## /search
+
+General web search. The bot queries the configured search backend order (default: DuckDuckGo → Bing → Google → Yandex → Grokipedia) and returns a summarized answer.
+
+```text
+/search latest OpenRouter announcements
+```
+
+## /news
+
+News search. Uses news-specific backends (default: DuckDuckGo → Bing → Yahoo) and returns a summary of recent articles.
+
+```text
+/news major AI regulation updates
+```
+
+## /wiki
+
+Wikipedia encyclopedia search. Uses the `wikipedia` backend by default and is scoped to encyclopedic topics. Use this when you want information from Wikipedia specifically rather than general web results.
+
+```text
+/wiki Ada Lovelace
+```
+
+<Tip>
+  The auto-router (when `BOT_SEARCH_CONTEXT_MODE=context`) will override `wiki` mode with `search` for creators, influencers, social media personalities, and ambiguous modern names. Use `/wiki` explicitly if you want to force the Wikipedia backend.
+</Tip>
+
+## /images
+
+Image search. The bot fetches the top result image and sends it directly into the chat as an attachment.
+
+```text
+/images red fox watercolor
+```
+
+The bot tries to download the first result image. If the download fails, it falls back to the next result. If no image can be downloaded, it replies with an error message and the source URL.
+
+## /videos
+
+YouTube video search. The bot returns a numbered list of results. Reply with the number of the video you want and the bot sends its link and thumbnail.
+
+```text
+/videos nick land interview
+```
+
+The bot replies with a numbered list:
+
+```text
+Videos:
+1. Nick Land — Interview on Accelerationism
+2. Nick Land: The Dark Enlightenment Explained
+3. Nick Land Full Interview — Urbanomic
+Reply with a number to send the thumbnail and URL.
+```
+
+Then send your selection:
+
+```text
+1
+```
+
+The bot sends the video's thumbnail image and URL.
+
+<Note>
+  `/videos` is always an explicit command. It is never selected by the auto-router when `BOT_SEARCH_CONTEXT_MODE=context`. You must invoke it with the `/videos` prefix.
+</Note>
+
+## /source
+
+Source lookup for previous search results. After any search command returns a summary, the bot caches the source URLs for that conversation. Use `/source` to retrieve them.
+
+You can invoke source lookup two ways:
+
+```text
+/source Ada claim
+```
+
+```text
+source for the second claim
+```
+
+Plain-text source requests (without the slash prefix) are detected automatically when the bot is mention-eligible. Both forms search the cached results for the closest matching URL.
+
+Sources are cached per conversation for `BOT_SEARCH_SOURCE_TTL_SECONDS` (default: `1800` seconds / 30 minutes). After the TTL expires, the cache is cleared and you need to run a new search before requesting sources.
+
+If no matching source is found, the bot replies:
+
+```text
+I don't have a saved source for that yet; ask me to search it.
+```
+
+## Auto-search routing
+
+When `BOT_SEARCH_CONTEXT_MODE=context`, the bot can automatically route normal chat messages to a search command when it detects a factual query. This is off by default (`no_context`).
+
+With context mode active:
+
+- The bot sends your chat message to a router that decides whether to search and which mode to use.
+- `/videos` is never auto-routed — you must use the explicit command.
+- Ambiguous follow-up messages (pronouns without a clear referent, like "who is she?") trigger a clarification request: "Who are you referring to?" Reply with the subject and the bot continues the pending query.
+- After one failed clarification attempt, the bot clears the pending state and asks you to restate your full question.
+
+<Info>
+  Set `BOT_SEARCH_DEBUG_LOGGING=true` to log auto-search routing decisions to your server output. This logs `should_search`, mode, query length, and path without logging raw message payloads.
+</Info>
+
+## Backend strategy
+
+The bot supports two strategies for querying multiple backends, configured via `BOT_SEARCH_BACKEND_STRATEGY`:
+
+- **`first_non_empty`** (default) — tries backends in order and stops at the first one that returns results.
+- **`aggregate`** — queries all backends in the configured order, merges results by URL (de-duplicated), then caps output at `BOT_SEARCH_TEXT_MAX_RESULTS` or `BOT_SEARCH_NEWS_MAX_RESULTS`.
+
+See [Search configuration](/configuration/search) for the full list of backend and strategy options.

@@ -1,97 +1,64 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: "signal-bot-orx: webhook-driven Signal bot with AI chat"
+description: "signal-bot-orx is a webhook bot that connects Signal, WhatsApp, and Telegram to OpenRouter LLMs for AI chat, search commands, image generation, and weather."
 ---
 
-## Setting up
+signal-bot-orx is a self-hosted webhook bot that bridges Signal, WhatsApp, and Telegram to OpenRouter-powered language models. Drop it into your group chats and get AI-powered replies triggered by mentions, along with slash commands for web search, image generation, and weather lookups — all without sending your messages to a third-party service you don't control.
 
-Get your documentation site up and running in minutes.
-
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
-
-## Make it yours
-
-Design a docs site that looks great and empowers your users.
-
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
+<CardGroup cols={2}>
+  <Card title="Introduction" icon="book-open" href="/introduction">
+    Understand what signal-bot-orx does and how it fits into your setup
   </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Install, configure, and run your bot in minutes
   </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
+  <Card title="Signal setup" icon="signal" href="/setup/signal">
+    Connect signal-bot-orx to signal-cli-rest-api
   </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
+  <Card title="Commands reference" icon="terminal" href="/commands/overview">
+    Every slash command and how to use them
   </Card>
-</Columns>
+</CardGroup>
 
-## Create beautiful pages
+## What signal-bot-orx does
 
-Everything you need to create world-class documentation.
+signal-bot-orx listens for incoming webhooks from your messaging platform and routes messages through OpenRouter to a language model of your choice. In group chats, the bot only replies when mentioned by name or alias. In direct messages, every message triggers a reply.
 
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
+<CardGroup cols={2}>
+  <Card title="Multi-transport" icon="network-wired">
+    Runs Signal (primary), WhatsApp via bridge, and Telegram simultaneously
   </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
+  <Card title="AI chat" icon="robot">
+    OpenRouter-backed replies with configurable model, temperature, and context window
   </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
+  <Card title="Search commands" icon="magnifying-glass">
+    `/search`, `/news`, `/wiki`, `/images`, `/videos` powered by DuckDuckGo and more
   </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
+  <Card title="Image generation" icon="image">
+    `/imagine` generates images via OpenRouter multimodal models
   </Card>
-</Columns>
+  <Card title="Weather" icon="cloud-sun">
+    `/weather` and `/forecast` via OpenWeatherMap API
+  </Card>
+  <Card title="Access control" icon="shield">
+    Number, group, and user allowlists with per-transport auth bypass options
+  </Card>
+</CardGroup>
 
-## Need inspiration?
+## Get started in three steps
 
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+<Steps>
+  <Step title="Install signal-bot-orx">
+    Clone the repo and install with `uv sync --dev`, or install from PyPI with `pip install signal-bot-orx`.
+  </Step>
+  <Step title="Configure your environment">
+    Copy `.env.example` to `.env`, set your `OPENROUTER_CHAT_API_KEY`, and configure at least one transport (Signal is enabled by default).
+  </Step>
+  <Step title="Run the bot">
+    Load your environment with `source .env` and start with `uv run signal-bot-orx`. Point your Signal, WhatsApp, or Telegram webhook to the bot's endpoint.
+  </Step>
+</Steps>
+
+<Note>
+  signal-bot-orx requires a running [signal-cli-rest-api](https://github.com/bbernhard/signal-cli-rest-api) instance and an [OpenRouter](https://openrouter.ai) API key. See the [quickstart](/quickstart) for full prerequisites.
+</Note>

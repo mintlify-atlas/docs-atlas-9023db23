@@ -1,0 +1,118 @@
+---
+title: "Generate images with /imagine and get weather forecasts"
+description: "How to use /imagine for AI image generation via OpenRouter and /weather and /forecast for current conditions and 5-day forecasts via OpenWeatherMap."
+---
+
+The `/imagine`, `/weather`, and `/forecast` commands are optional features that each require additional configuration before they work. `/imagine` needs an OpenRouter image model and API key; `/weather` and `/forecast` need an OpenWeatherMap API key. If either is not configured, the bot replies with a clear message explaining that the feature is not set up.
+
+## /imagine
+
+`/imagine` generates an image from a text prompt using OpenRouter's chat completions endpoint with image output modalities.
+
+```text
+/imagine a watercolor fox reading a map
+```
+
+When you send the command, the bot immediately replies:
+
+```text
+Generating image, please wait...
+```
+
+Once generation completes, the bot sends the image with a caption showing your original prompt.
+
+### Requirements
+
+You must set both of the following environment variables:
+
+```bash
+OPENROUTER_IMAGE_API_KEY=your_key_here
+OPENROUTER_IMAGE_MODEL=your_model_here
+```
+
+You can use the same key as `OPENROUTER_CHAT_API_KEY` if you are comfortable sharing rate limits across chat and image requests.
+
+### Limits and timeouts
+
+- Prompt length is capped at `BOT_MAX_PROMPT_CHARS` (default: `700` characters). Longer prompts return: `Prompt too long. Maximum is 700 characters.`
+- Generation timeout is controlled by `OPENROUTER_IMAGE_TIMEOUT_SECONDS` (default: `90` seconds).
+
+### When not configured
+
+If `OPENROUTER_IMAGE_API_KEY` or `OPENROUTER_IMAGE_MODEL` is not set, the bot replies:
+
+```text
+Image mode is not configured on this bot.
+```
+
+<Info>
+  See [Chat configuration](/configuration/chat) for the full list of `/imagine` environment variables.
+</Info>
+
+## /weather
+
+`/weather` returns current weather conditions for a location via OpenWeatherMap.
+
+```text
+/weather London
+```
+
+```text
+/weather New York
+```
+
+If you have `WEATHER_DEFAULT_LOCATION` set, you can omit the location argument:
+
+```text
+/weather
+```
+
+The bot will use your configured default. Without a default and without a location argument, the bot replies: `Usage: /weather <location>`.
+
+### Response format
+
+The bot returns temperature, conditions, feels-like temperature, humidity, and wind speed. Units are controlled by `WEATHER_UNITS`:
+
+- `metric` (default) — temperature in Celsius, wind in m/s
+- `imperial` — temperature in Fahrenheit, wind in m/s
+
+Example response:
+
+```text
+Weather for London, GB:
+- Condition: Overcast clouds
+- Temperature: 14°C
+- Feels like: 12°C
+- Humidity: 78%
+- Wind: 4.5 m/s
+```
+
+## /forecast
+
+`/forecast` returns a 5-day forecast for a location, with one entry per day at approximately 12:00 local time.
+
+```text
+/forecast Tokyo
+```
+
+```text
+/forecast Paris
+```
+
+The bot returns a day-by-day summary of conditions and temperature for the next 5 days.
+
+### Requirements
+
+`/forecast` requires the same `WEATHER_API_KEY` as `/weather`. Without it, the bot replies:
+
+```text
+Weather is not configured on this bot.
+```
+
+<Warning>
+  Both `/weather` and `/forecast` reply with "Weather is not configured on this bot." if `WEATHER_API_KEY` is not set. Set the key before using either command.
+</Warning>
+
+<Info>
+  See [Weather configuration](/configuration/weather) for setup details including default location and unit configuration.
+</Info>

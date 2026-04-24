@@ -1,0 +1,65 @@
+---
+title: "Enable /weather and /forecast via OpenWeatherMap API"
+description: "Configure the OpenWeatherMap API key, temperature units, and default location to enable the /weather and /forecast commands in signal-bot-orx."
+---
+
+Weather integration is optional and requires a free OpenWeatherMap API key. When configured, it enables the `/weather` and `/forecast` commands, which return current conditions and 5-day forecasts for any location. If `WEATHER_API_KEY` is not set, both commands are unavailable and the bot replies with "Weather is not configured on this bot."
+
+## Configuration
+
+<ParamField path="WEATHER_API_KEY" type="string">
+  Your OpenWeatherMap API key. Required to enable weather commands. Leave empty to disable weather functionality entirely.
+</ParamField>
+
+<ParamField path="WEATHER_UNITS" type="string" default="metric">
+  Unit system for temperature values. Accepted values: `metric` or `imperial`.
+
+  - `metric` — temperatures in Celsius (°C)
+  - `imperial` — temperatures in Fahrenheit (°F)
+</ParamField>
+
+<ParamField path="WEATHER_DEFAULT_LOCATION" type="string">
+  Optional. A default location string used when you run `/weather` or `/forecast` without supplying a location argument. For example, set `WEATHER_DEFAULT_LOCATION=London` so that `/weather` alone returns London's weather. If unset, running the command without a location argument returns an error.
+</ParamField>
+
+## Getting an API key
+
+OpenWeatherMap provides a free tier that covers current weather and 5-day forecasts.
+
+<Steps>
+  <Step title="Create an account">
+    Go to [openweathermap.org](https://openweathermap.org) and sign up for a free account.
+  </Step>
+  <Step title="Get your API key">
+    After signing in, open your account menu and navigate to **API keys**. Your default key is listed there, or you can generate a new one.
+  </Step>
+  <Step title="Add the key to your environment">
+    Set `WEATHER_API_KEY` in your `.env` file:
+
+    ```bash
+    WEATHER_API_KEY=your_openweathermap_api_key_here
+    WEATHER_UNITS=metric
+    WEATHER_DEFAULT_LOCATION=London
+    ```
+  </Step>
+</Steps>
+
+<Note>
+  New OpenWeatherMap API keys may take a few minutes to become active after creation. If you see authentication errors immediately after setup, wait a moment and try again.
+</Note>
+
+## Usage examples
+
+Once `WEATHER_API_KEY` is set, use these commands in any chat:
+
+```text
+/weather London
+/forecast Tokyo
+/weather  (uses WEATHER_DEFAULT_LOCATION if set)
+```
+
+The `/weather` command returns current conditions including temperature, feels-like temperature, humidity, wind speed, and a weather description. The `/forecast` command returns a 5-day daily forecast with conditions and temperature for each day.
+
+<Warning>
+  Weather commands are only available when `WEATHER_API_KEY` is set. If the variable is empty or unset, the bot replies "Weather is not configured on this bot." to any weather command.
+</Warning>

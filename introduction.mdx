@@ -1,0 +1,59 @@
+---
+title: "signal-bot-orx: self-hosted AI bot for Signal and more"
+description: "signal-bot-orx is a self-hosted webhook bot that connects Signal, WhatsApp, and Telegram to OpenRouter LLMs for AI chat, search, and image generation."
+---
+
+signal-bot-orx is a webhook-driven bot that bridges Signal, WhatsApp, and Telegram to language models via OpenRouter. It is designed for developers and privacy-conscious users who want AI-powered group chat assistance without routing messages through a third-party service they don't control. Deploy it alongside `signal-cli-rest-api` and your bot is live in minutes, responding to mentions in group chats and every message in direct conversations.
+
+<Note>
+  signal-bot-orx is in active development. Some features may be broken or behave unexpectedly between updates.
+</Note>
+
+## How it works
+
+signal-bot-orx runs as a lightweight FastAPI service that listens for incoming webhook payloads from your messaging platform. The flow for every interaction is:
+
+1. A user sends a message in a Signal group (or WhatsApp/Telegram if those transports are enabled).
+2. `signal-cli-rest-api` delivers the message as a `POST` request to the bot's `/webhook/signal` endpoint.
+3. The bot checks whether the sender or group is allowlisted, then extracts the message text.
+4. In group chats, the bot only responds when it is mentioned by name or alias. In direct messages, every message triggers a reply.
+5. The bot sends the conversation history and the new message to OpenRouter, which forwards the request to your configured language model.
+6. The model's reply is sent back through `signal-cli-rest-api` to the original group or user.
+
+Slash commands (`/search`, `/news`, `/wiki`, `/images`, `/videos`, `/imagine`, `/weather`, `/forecast`) are intercepted before the LLM call and routed to their respective backends — DuckDuckGo search, OpenRouter image generation, or OpenWeatherMap.
+
+## Key capabilities
+
+<CardGroup cols={2}>
+  <Card title="AI chat" icon="robot" href="/configuration/chat">
+    Mention-triggered group replies and direct-message chat backed by any OpenRouter model. Configurable temperature, context window, and system prompt.
+  </Card>
+  <Card title="Search commands" icon="magnifying-glass" href="/commands/search">
+    `/search`, `/news`, `/wiki`, `/images`, and `/videos` powered by DuckDuckGo and a configurable backend chain. Privacy-first: search only runs on explicit commands by default.
+  </Card>
+  <Card title="Image generation" icon="image" href="/commands/image-and-weather">
+    `/imagine` sends a prompt to an OpenRouter multimodal model and delivers the generated image directly in the chat.
+  </Card>
+  <Card title="Weather" icon="cloud-sun" href="/commands/image-and-weather">
+    `/weather` and `/forecast` fetch current conditions and five-day forecasts from OpenWeatherMap.
+  </Card>
+  <Card title="Multi-transport" icon="network-wired" href="/setup/signal">
+    Signal is enabled by default. WhatsApp (via a bridge) and Telegram can be enabled simultaneously alongside Signal.
+  </Card>
+  <Card title="Access control" icon="shield" href="/setup/signal">
+    Per-transport number, group, and user allowlists. Each transport has an independent auth bypass flag for testing.
+  </Card>
+</CardGroup>
+
+## Architecture overview
+
+signal-bot-orx is composed of a small set of cooperating services:
+
+- **signal-cli-rest-api** — registers your Signal number, sends and receives messages, and delivers incoming payloads to the bot's webhook endpoint. You run and manage this service separately.
+- **The bot service** — a FastAPI application (`signal-bot-orx`) that receives webhooks, applies access control, manages per-group conversation history, and orchestrates calls to downstream services.
+- **OpenRouter** — the API gateway that routes chat and image requests to your chosen language model. You supply an API key; the model is configurable.
+- **Optional services** — OpenWeatherMap provides weather data when `WEATHER_API_KEY` is set. A WhatsApp bridge (whatsapp-web.js) and the Telegram Bot API are supported as additional transports when enabled.
+
+The bot process binds to `127.0.0.1:8001` by default. Set `BOT_WEBHOOK_HOST=0.0.0.0` in your `.env` to expose it on the network for container or LAN deployments.
+
+Ready to get the bot running? Follow the [quickstart](/quickstart) to install, configure, and start signal-bot-orx in a few minutes.

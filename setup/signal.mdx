@@ -1,0 +1,119 @@
+---
+title: "Connect signal-cli-rest-api as the Signal transport"
+description: "Configure the Signal transport by connecting signal-cli-rest-api, setting your bot number, and defining allowlists for numbers and groups."
+---
+
+The Signal transport is the default and primary communication channel for signal-bot-orx. It works by receiving webhook `POST` requests from `signal-cli-rest-api` and sending replies back through that same API. Before you start, you need a registered `signal-cli-rest-api` instance and the phone number that instance is registered under.
+
+## Prerequisites
+
+- `signal-cli-rest-api` is running and registered with your bot phone number.
+- You know the bot's registered phone number in E.164 format (e.g. `+15550001111`).
+- The bot process can reach your `signal-cli-rest-api` instance over HTTP.
+
+## Configuration
+
+Set these variables in your `.env` file. Copy `.env.example` as a starting point.
+
+<ParamField body="SIGNAL_ENABLED" type="boolean" default="true">
+  Enables the Signal transport. Set to `false` only if you are running another transport exclusively.
+</ParamField>
+
+<ParamField body="SIGNAL_API_BASE_URL" type="string" required>
+  Base URL of your `signal-cli-rest-api` instance. Example: `http://127.0.0.1:8080`.
+</ParamField>
+
+<ParamField body="SIGNAL_SENDER_NUMBER" type="string" required>
+  The bot's registered phone number in E.164 format. Example: `+15550001111`.
+</ParamField>
+
+<ParamField body="SIGNAL_SENDER_UUID" type="string">
+  Optional UUID/ACI for the bot account. When set, it is used for metadata-based mention matching in addition to the alias fallback. Leave blank if you do not have it.
+</ParamField>
+
+<ParamField body="SIGNAL_ALLOWED_NUMBER" type="string">
+  Legacy single-number allowlist. Accepts one E.164 number. Prefer `SIGNAL_ALLOWED_NUMBERS` for new setups.
+</ParamField>
+
+<ParamField body="SIGNAL_ALLOWED_NUMBERS" type="string">
+  Comma-separated list of E.164 numbers allowed to message the bot. Example: `+15550002222,+15550003333`.
+</ParamField>
+
+<ParamField body="SIGNAL_ALLOWED_GROUP_IDS" type="string">
+  Comma-separated list of Signal group IDs allowed to trigger the bot. Example: `group.ABC123==,group.XYZ789==`.
+</ParamField>
+
+<ParamField body="SIGNAL_DISABLE_AUTH" type="boolean" default="false">
+  Bypasses all allowlist checks. Every sender and group can trigger the bot when this is `true`.
+</ParamField>
+
+<ParamField body="BOT_GROUP_REPLY_MODE" type="string" default="group">
+  Controls where the bot sends replies in group contexts. Accepts `group` or `dm_fallback`. See [Group reply mode](#group-reply-mode) below.
+</ParamField>
+
+<ParamField body="BOT_WEBHOOK_HOST" type="string" default="127.0.0.1">
+  The host address the bot binds its webhook server to. Use `0.0.0.0` to accept connections on all interfaces (useful for containers or LAN deployments).
+</ParamField>
+
+<ParamField body="BOT_WEBHOOK_PORT" type="integer" default="8001">
+  The port the bot's webhook server listens on.
+</ParamField>
+
+## Setting the webhook callback
+
+After the bot is running, configure `signal-cli-rest-api` to deliver incoming messages by setting its callback URL to:
+
+```
+http://<BOT_WEBHOOK_HOST>:<BOT_WEBHOOK_PORT>/webhook/signal
+```
+
+For a standard local setup with default values this is:
+
+```
+http://127.0.0.1:8001/webhook/signal
+```
+
+For a LAN or containerized deployment where `BOT_WEBHOOK_HOST=0.0.0.0`, use the actual IP address reachable from `signal-cli-rest-api`:
+
+```
+http://192.168.1.20:8001/webhook/signal
+```
+
+The exact configuration location depends on your `signal-cli-rest-api` version. Refer to its documentation for the `callback.url` setting or equivalent.
+
+## Access control
+
+The bot enforces an allowlist by default. You must configure at least one of the following unless you explicitly disable auth:
+
+- `SIGNAL_ALLOWED_NUMBER` — a single phone number (legacy, still supported).
+- `SIGNAL_ALLOWED_NUMBERS` — a comma-separated list of phone numbers.
+- `SIGNAL_ALLOWED_GROUP_IDS` — a comma-separated list of group IDs.
+
+If none of these are set and `SIGNAL_DISABLE_AUTH` is not `true`, the bot will refuse to start with a configuration error.
+
+You can combine number and group allowlists. A message is accepted if its sender is in the number allowlist **or** the originating group is in the group ID allowlist.
+
+<Tip>
+  To find a group ID, query the `signal-cli-rest-api` groups endpoint for your registered number:
+
+  ```bash
+  curl http://127.0.0.1:8080/v1/groups/+15550001111
+  ```
+
+  The `id` field in each returned object is the value to add to `SIGNAL_ALLOWED_GROUP_IDS`.
+</Tip>
+
+<Note>
+  Only use `SIGNAL_DISABLE_AUTH=true` during local development or testing. With auth disabled, any sender can trigger the bot. Re-enable allowlists before exposing the bot to a network.
+</Note>
+
+## Group reply mode
+
+`BOT_GROUP_REPLY_MODE` controls where the bot sends its reply when a group message triggers it.
+
+| Value | Behavior |
+|---|---|
+| `group` | Reply is sent back to the group. This is the default. |
+| `dm_fallback` | Reply is sent as a direct message to the individual sender. Use this when you are debugging group recipient resolution issues. |
+
+Set `dm_fallback` temporarily if group sends are failing with 400 errors — it lets you verify the bot is responding correctly while you diagnose the group configuration.

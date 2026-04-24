@@ -1,0 +1,100 @@
+---
+title: "Set up WhatsApp support via the whatsapp-web.js bridge"
+description: "Enable the WhatsApp transport by running the whatsapp-web.js bridge, pointing the bot at it, and configuring your number allowlist."
+---
+
+WhatsApp support in signal-bot-orx uses an unofficial bridge built on [whatsapp-web.js](https://wwebjs.dev/). The bridge runs as a separate Node.js process, receives messages from WhatsApp, and forwards them to the bot over HTTP. The bot then calls back to the bridge to send replies. Because this approach relies on an unofficial WhatsApp client library, it is best treated as experimental.
+
+<Warning>
+  The whatsapp-web.js library is not officially supported by Meta. Its availability and stability depend on WhatsApp's web client remaining compatible. Use it in non-critical deployments and monitor for breakage after WhatsApp updates.
+</Warning>
+
+## Prerequisites
+
+- Node.js is installed on the machine running the bridge.
+- You have cloned the `signal-bot-orx` repository so you have access to the `bridge/` directory.
+- The bridge process and the bot process can reach each other over HTTP.
+
+## Step 1: Run the bridge
+
+Install dependencies and start the bridge from the `bridge/` directory:
+
+```bash
+cd bridge
+npm init -y
+npm install express axios qrcode-terminal whatsapp-web.js
+```
+
+Then start the bridge, pointing it at your bot's webhook endpoint:
+
+```bash
+BOT_WEBHOOK_URL=http://127.0.0.1:8001/webhook/whatsapp \
+WHATSAPP_BRIDGE_TOKEN= \
+node whatsapp-bridge.js
+```
+
+The bridge prints a QR code in the terminal. Scan it with your WhatsApp mobile app to link the account. Once linked, the bridge is ready to forward messages.
+
+The bridge exposes the following endpoints:
+
+| Endpoint | Description |
+|---|---|
+| `GET /healthz` | Health check |
+| `POST /send/text` | Send a text message — body: `{ "chatId": "...", "text": "..." }` |
+| `POST /send/image` | Send an image — body: `{ "chatId": "...", "imageBase64": "...", "mimeType": "image/jpeg", "caption": "..." }` |
+
+If `WHATSAPP_BRIDGE_TOKEN` is set, the bridge requires `Authorization: Bearer <token>` on all `/send/*` requests.
+
+## Step 2: Configure the bot
+
+Set these variables in your `.env` file:
+
+<ParamField body="WHATSAPP_ENABLED" type="boolean" default="false">
+  Set to `true` to activate the WhatsApp transport. When `false`, the `POST /webhook/whatsapp` endpoint is not registered.
+</ParamField>
+
+<ParamField body="WHATSAPP_BRIDGE_BASE_URL" type="string">
+  Base URL of your running whatsapp-web.js bridge. Required when `WHATSAPP_ENABLED=true`. Example: `http://127.0.0.1:3001`.
+</ParamField>
+
+<ParamField body="WHATSAPP_BRIDGE_TOKEN" type="string">
+  Optional bearer token. If set, the bot includes `Authorization: Bearer <token>` on every request to the bridge's `/send/*` endpoints. Must match the token the bridge was started with.
+</ParamField>
+
+<ParamField body="WHATSAPP_ALLOWED_NUMBERS" type="string">
+  Comma-separated list of WhatsApp identifiers (e.g. `+15550002222@c.us`) allowed to trigger the bot. Required unless `WHATSAPP_DISABLE_AUTH=true`. Group chat IDs end in `@g.us`.
+</ParamField>
+
+<ParamField body="WHATSAPP_DISABLE_AUTH" type="boolean" default="false">
+  Bypasses the allowlist. Every sender can trigger the bot when `true`. Use only for quick local testing.
+</ParamField>
+
+A minimal working configuration looks like this:
+
+```env
+WHATSAPP_ENABLED=true
+WHATSAPP_BRIDGE_BASE_URL=http://127.0.0.1:3001
+WHATSAPP_BRIDGE_TOKEN=
+WHATSAPP_ALLOWED_NUMBERS=+15550002222@c.us
+WHATSAPP_DISABLE_AUTH=false
+```
+
+## Webhook endpoint
+
+When `WHATSAPP_ENABLED=true`, the bot registers:
+
+```
+POST /webhook/whatsapp
+```
+
+Configure the bridge's `BOT_WEBHOOK_URL` environment variable to point at this endpoint using the bot's host and port:
+
+```
+http://<BOT_WEBHOOK_HOST>:<BOT_WEBHOOK_PORT>/webhook/whatsapp
+```
+
+With default values this is `http://127.0.0.1:8001/webhook/whatsapp`.
+
+<Note>
+  Signal, WhatsApp, and Telegram transports can all be enabled at the same time. Each transport registers its own webhook endpoint and processes messages independently.
+</Note>
